@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:roulette/roulette.dart';
 import 'package:roulette/utils/transform_entry.dart';
 import 'package:roulette/utils/text.dart';
+import 'package:touchable/touchable.dart';
 
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -40,27 +41,32 @@ class RoulettePaint extends AnimatedWidget {
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
-      aspectRatio: 1.0,
-      child: CustomPaint(
-        painter: _RoulettePainter(
-          rotate: _rotation.value,
-          style: style,
-          group: group,
-          imageInfos: imageInfos,
-        ),
-      ),
-    );
+        aspectRatio: 1.0,
+        child: CanvasTouchDetector(
+          gesturesToOverride: const [GestureType.onTapUp],
+          builder: (context) => CustomPaint(
+            painter: _RoulettePainter(
+              context: context,
+              rotate: _rotation.value,
+              style: style,
+              group: group,
+              imageInfos: imageInfos,
+            ),
+          ),
+        ));
   }
 }
 
 class _RoulettePainter extends CustomPainter {
   _RoulettePainter({
+    required this.context,
     required this.style,
     required this.rotate,
     required this.group,
     required this.imageInfos,
   });
 
+  final BuildContext context;
   final double rotate;
   final RouletteStyle style;
   final RouletteGroup group;
@@ -78,6 +84,7 @@ class _RoulettePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    //var canvas = TouchyCanvas(context, canvas);
     final radius = size.width / 2;
     final rect = Rect.fromCircle(center: Offset.zero, radius: radius);
 
@@ -251,10 +258,15 @@ class _RoulettePainter extends CustomPainter {
     _paint.strokeWidth = 0;
     _paint.style = ui.PaintingStyle.fill;
 
-    canvas.drawCircle(
+    var touchyCanvas = TouchyCanvas(context, canvas);
+
+    touchyCanvas.drawCircle(
       Offset.zero,
       radius * style.centerStickSizePercent,
       _paint,
+      onTapUp: (tapdetail) {
+        print("Circle has been touched!");
+      }
     );
   }
 }

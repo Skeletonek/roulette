@@ -56,6 +56,21 @@ class _RoulettePainter extends CustomPainter {
 
   final Paint _paint = Paint();
 
+  // Supersampling cache: the whole wheel is rendered once into a higher
+  // resolution offscreen image and then drawn downscaled. Downscaling averages
+  // the extra samples, which removes the jagged edges produced by the
+  // backend's lack of MSAA (notably on Linux).
+  //
+  // The buffer is sized to the actual wheel (x _kSupersample, capped) rather
+  // than a fixed 2048², so the per-frame downscale stays cheap on the web.
+  static const double _kSupersample = 1.0;
+  static const double _kMaxResolution = 1024;
+  ui.Image? _cachedImage;
+  double? _cacheResolution;
+  RouletteGroup? _cacheGroup;
+  RouletteStyle? _cacheStyle;
+  Map<int, ImageInfo>? _cacheImages;
+
   @override
   bool shouldRepaint(covariant _RoulettePainter oldDelegate) {
     return oldDelegate.rotate != rotate ||
@@ -64,24 +79,63 @@ class _RoulettePainter extends CustomPainter {
         !mapEquals(oldDelegate.imageInfos, imageInfos);
   }
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final radius = size.width / 2;
-    final rect = Rect.fromCircle(center: Offset.zero, radius: radius);
+  /// Renders the full (static) wheel into a high resolution offscreen image.
+  ui.Image _renderWheel(double resolution) {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final radius = resolution / 2;
+    final rect = Rect.fromCircle(
+      center: Offset.zero,
+      radius: radius,
+    );
 
-    canvas.translate(size.width / 2, size.height / 2);
+    canvas.translate(radius, radius);
 
     canvas.save();
-    canvas.rotate(-pi / 2 + rotate);
-
+    canvas.rotate(-pi / 2);
     // Draws the backgrounds of the sections.
     _drawBackground(canvas, radius, rect);
     // Draws the content of the sections.
     _drawSections(canvas, radius);
-
     canvas.restore();
 
     _drawCenterSticker(canvas, radius);
+
+    final picture = recorder.endRecording();
+    return picture.toImageSync(resolution.toInt(), resolution.toInt());
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final radius = size.width / 2;
+    final resolution =
+        (size.width * _kSupersample).clamp(64, _kMaxResolution).toDouble();
+
+    if (_cachedImage == null ||
+        _cacheResolution != resolution ||
+        !identical(_cacheGroup, group) ||
+        !identical(_cacheStyle, style) ||
+        !mapEquals(_cacheImages, imageInfos)) {
+      _cachedImage?.dispose();
+      _cachedImage = _renderWheel(resolution);
+      _cacheResolution = resolution;
+      _cacheGroup = group;
+      _cacheStyle = style;
+      _cacheImages = imageInfos;
+    }
+
+    canvas.save();
+    canvas.translate(size.width / 2, size.height / 2);
+    canvas.rotate(rotate);
+
+    canvas.drawImageRect(
+      _cachedImage!,
+      Rect.fromLTWH(0, 0, resolution, resolution),
+      Rect.fromCircle(center: Offset.zero, radius: radius),
+      Paint()..filterQuality = FilterQuality.medium,
+    );
+
+    canvas.restore();
   }
 
   /// Draws the background of the sections.
@@ -137,24 +191,30 @@ class _RoulettePainter extends CustomPainter {
     _paint.strokeWidth = 0;
     _paint.isAntiAlias = true;
 
-    // Outer rim ring drawn once as a filled annulus.
-    final double outer = radius + style.dividerThickness / 2;
-    final double inner = radius - style.dividerThickness / 2;
+    // Outer rim ring drawn once as a filled annulus, kept fully INSIDE the
+    // wheel radius so it is never clipped by the widget bounds.
+    final double outer = radius;
+    final double inner = radius - style.dividerThickness;
     final Path ring = Path()
       ..addOval(Rect.fromCircle(center: Offset.zero, radius: outer))
       ..addOval(Rect.fromCircle(center: Offset.zero, radius: inner));
     ring.fillType = PathFillType.evenOdd;
     canvas.drawPath(ring, _paint);
 
-    // Radial spokes drawn once per boundary as thin filled wedges.
-    final double halfAngle = (style.dividerThickness / 2) / radius;
-    for (final double angle in boundaries) {
-      final Path wedge = Path();
-      wedge.moveTo(0, 0);
-      wedge.arcTo(rect, angle - halfAngle, 2 * halfAngle, false);
-      wedge.close();
-      canvas.drawPath(wedge, _paint);
-    }
+  // Radial spokes drawn once per boundary as constant-width bands so the
+  // divider thickness stays uniform from the rim down to the center. Their
+  // outer tip meets the rim ring's center, also staying inside the radius.
+  final double halfThickness = style.dividerThickness / 2;
+  final double spokeLength = radius - style.dividerThickness / 2;
+  for (final double angle in boundaries) {
+    canvas.save();
+    canvas.rotate(angle);
+    canvas.drawRect(
+      Rect.fromLTWH(0, -halfThickness, spokeLength, style.dividerThickness),
+      _paint,
+    );
+    canvas.restore();
+  }
   }
 
   /// Draws the image to the background of the current section.

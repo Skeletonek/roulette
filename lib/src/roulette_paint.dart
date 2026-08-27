@@ -92,6 +92,7 @@ class _RoulettePainter extends CustomPainter {
     _paint.style = ui.PaintingStyle.fill;
 
     double drewSweep = 0;
+    final List<double> boundaries = [0.0];
 
     for (var i = 0; i < group.divide; i++) {
       final RouletteUnit unit = group.units[i];
@@ -104,6 +105,7 @@ class _RoulettePainter extends CustomPainter {
       _paint.color = unit.color;
       _paint.strokeWidth = 0;
       _paint.style = ui.PaintingStyle.fill;
+      _paint.isAntiAlias = true;
       canvas.drawArc(rect, 0.0 * i, sweep, true, _paint);
 
       final resolvedImage = imageInfos[i]?.image;
@@ -112,14 +114,46 @@ class _RoulettePainter extends CustomPainter {
         _drawBackgroundImage(canvas, radius, rect, unit, sweep, resolvedImage);
       }
 
-      // Draws the section border
-      _paint.color = style.dividerColor;
-      _paint.strokeWidth = style.dividerThickness;
-      _paint.style = ui.PaintingStyle.stroke;
-      canvas.drawArc(rect, 0.0 * i, sweep, true, _paint);
-
       canvas.restore();
       drewSweep += sweep;
+      if (i < group.divide - 1) {
+        boundaries.add(drewSweep);
+      }
+    }
+
+    _drawDividers(canvas, radius, rect, boundaries);
+  }
+
+  /// Draws the section dividers (outer rim ring and radial spokes) as filled
+  /// shapes so the edges are anti-aliased cleanly on every backend.
+  void _drawDividers(Canvas canvas, double radius, Rect rect,
+      List<double> boundaries) {
+    if (style.dividerThickness <= 0) {
+      return;
+    }
+
+    _paint.color = style.dividerColor;
+    _paint.style = ui.PaintingStyle.fill;
+    _paint.strokeWidth = 0;
+    _paint.isAntiAlias = true;
+
+    // Outer rim ring drawn once as a filled annulus.
+    final double outer = radius + style.dividerThickness / 2;
+    final double inner = radius - style.dividerThickness / 2;
+    final Path ring = Path()
+      ..addOval(Rect.fromCircle(center: Offset.zero, radius: outer))
+      ..addOval(Rect.fromCircle(center: Offset.zero, radius: inner));
+    ring.fillType = PathFillType.evenOdd;
+    canvas.drawPath(ring, _paint);
+
+    // Radial spokes drawn once per boundary as thin filled wedges.
+    final double halfAngle = (style.dividerThickness / 2) / radius;
+    for (final double angle in boundaries) {
+      final Path wedge = Path();
+      wedge.moveTo(0, 0);
+      wedge.arcTo(rect, angle - halfAngle, 2 * halfAngle, false);
+      wedge.close();
+      canvas.drawPath(wedge, _paint);
     }
   }
 

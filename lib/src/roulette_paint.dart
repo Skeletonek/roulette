@@ -65,11 +65,11 @@ class _RoulettePainter extends CustomPainter {
   // than a fixed 2048², so the per-frame downscale stays cheap on the web.
   static const double _kSupersample = 1.0;
   static const double _kMaxResolution = 1024;
-  ui.Image? _cachedImage;
-  double? _cacheResolution;
-  RouletteGroup? _cacheGroup;
-  RouletteStyle? _cacheStyle;
-  Map<int, ImageInfo>? _cacheImages;
+  static ui.Image? _cachedImage;
+  static double? _cacheResolution;
+  static RouletteGroup? _cacheGroup;
+  static RouletteStyle? _cacheStyle;
+  static Map<int, ImageInfo>? _cacheImages;
 
   @override
   bool shouldRepaint(covariant _RoulettePainter oldDelegate) {

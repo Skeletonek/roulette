@@ -26,3 +26,4 @@ export './src/roulette_controller.dart'
 export './src/roulette_group.dart' show RouletteGroup;
 export './src/roulette_unit.dart' show RouletteUnit;
 export './src/roulette_style.dart' show RouletteStyle, SectionImageLayout;
+export './src/roulette_paint.dart' show RoulettePaint;

@@ -45,6 +45,8 @@ class RouletteStyle {
     this.textLayoutBias = 0.85,
     this.textStyle = defaultTextStyle,
     this.sectionImageLayout = SectionImageLayout.rotatedFit,
+    this.maxTextFontSize,
+    this.textPadding = 0,
   });
 
   /// The thickness of divider between each parts
@@ -78,4 +80,19 @@ class RouletteStyle {
   ///  * [SectionImageLayout.boundingBoxFit], which scales the image into the
   ///    section's bounding rectangle without rotation.
   final SectionImageLayout sectionImageLayout;
+
+  /// The maximum font size for section text.
+  ///
+  /// When the number of sections increases and the chord (available width)
+  /// becomes too small for the font, the text is automatically scaled down
+  /// to fit. This value sets the base font size that scaling starts from.
+  ///
+  /// If `null`, defaults to [defaultTextStyle.fontSize] (30).
+  final double? maxTextFontSize;
+
+  /// Horizontal padding applied to each side of the section text.
+  ///
+  /// This reduces the available width for text layout, keeping labels
+  /// away from the sector edges.
+  final double textPadding;
 }

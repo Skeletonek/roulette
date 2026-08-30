@@ -328,21 +328,39 @@ class _RoulettePainter extends CustomPainter {
           : unitTextStyle.copyWith(fontFamily: icon.fontFamily);
 
       // Calculates chord of circle.
-      final chord = 2 * (radius * style.textLayoutBias) * sin(sweep / 2);
+      // Scale textLayoutBias outward as more sections are added — the chord
+      // is wider near the rim, giving text more room.
+      final n = group.divide;
+      final effectiveBias = n > 4
+          ? (style.textLayoutBias + (0.99 - style.textLayoutBias) * (1 - 4 / n))
+              .clamp(style.textLayoutBias, 0.99)
+          : style.textLayoutBias;
+      final chord = 2 * (radius * effectiveBias) * sin(sweep / 2);
+
+      // Auto-scale font size to fit the chord when text would overflow.
+      final baseFontSize =
+          style.maxTextFontSize ?? style.textStyle.fontSize ?? 30;
+      final effectiveFontSize = baseFontSize * 3.5 > chord
+          ? (chord / 3.5).clamp(baseFontSize * 0.3, baseFontSize)
+          : baseFontSize;
+      final scaledTextStyle = effectiveFontSize != baseFontSize
+          ? textStyle.copyWith(fontSize: effectiveFontSize)
+          : textStyle;
 
       // Creates a builder for the paragraph that will be drawn on the canvas.
       final pb = ui.ParagraphBuilder(paragraphStyle)
-        ..pushStyle(textStyle.asUiTextStyle())
+        ..pushStyle(scaledTextStyle.asUiTextStyle())
         ..addText(text);
 
       // Creates the paragraph.
       final paragraph = pb.build();
-      paragraph.layout(ui.ParagraphConstraints(width: chord));
+      final layoutWidth = (chord - 2 * style.textPadding).clamp(0.0, chord);
+      paragraph.layout(ui.ParagraphConstraints(width: layoutWidth));
 
       // Draws the paragraph.
       canvas.drawParagraph(
         paragraph,
-        Offset(-chord / 2, -radius * style.textLayoutBias),
+        Offset(-layoutWidth / 2, -radius * effectiveBias),
       );
 
       canvas.restore();
